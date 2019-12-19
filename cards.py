@@ -19,6 +19,7 @@ types = "ace two three four five six seven eight nine ten jack queen king".split
 deck = []
 data = {
 	"inplay": [],
+	"players": [],
 	"hands": {}
 }
 for suit in suits:
@@ -32,21 +33,7 @@ async def on_ready():
 	print("\n\ncard time\n\n")
 
 
-# @bot.command()
-# async def commands(ctx):
-# 	global deck, data
-# 	await ctx.send("""\
-# **c.help** - this
-# **c.showdeck** - Show the top ten cards in the deck/draw pile.
-# **c.showinplay** - Show the top ten cards that have been played previously.
-# **c.showhand** - Show your hand.
-# **c.shuffle** - Shuffle the deck/draw pile.
-# **c.draw <amount>** - Draw some amount of cards from the deck/draw pile. Amount is 1 by default.
-# **c.play [card]** - Play some card from your hand.
-# """)
-
-
-@bot.command()
+@bot.command(brief="Show top 10 cards in the deck")
 async def showdeck(ctx):
 	global deck, data
 	outputarray = []
@@ -55,7 +42,7 @@ async def showdeck(ctx):
 	await ctx.send("**Top Ten Cards of the Deck:**\n%s" % "\n".join(outputarray))
 
 
-@bot.command()
+@bot.command(brief="Show last 10 cards that were played")
 async def showinplay(ctx):
 	global deck, data
 	outputarray = []
@@ -67,7 +54,7 @@ async def showinplay(ctx):
 	await ctx.send("**Top Ten Cards In Play:**\n%s" % "\n".join(outputarray))
 
 
-@bot.command()
+@bot.command(brief="Show your hand (works in DMs)")
 async def showhand(ctx):
 	global deck, data
 	try:
@@ -76,14 +63,14 @@ async def showhand(ctx):
 		await ctx.send("You have to draw some cards first!")
 
 
-@bot.command()
+@bot.command(brief="Shuffle the deck")
 async def shuffle(ctx):
 	global deck, data
 	r.shuffle(deck)
 	await ctx.send("Deck shuffled!")
 
 
-@bot.command()
+@bot.command(brief="Draw some amount of cards", usage="<amount>")
 async def draw(ctx, arg="1"):
 	global deck, data
 	arg = int(arg)
@@ -93,20 +80,44 @@ async def draw(ctx, arg="1"):
 	except:
 		data["hands"][ctx.author.id] = []
 	i = 0
-	for num in range(arg+1):
+	for num in range(arg):
 		i = num
 		try:
 			data["hands"][ctx.author.id].append(deck[num])
 		except:
 			break
-	deck = deck[i:]
-	await ctx.send("**%s** drew **%s** card(s). The deck now has %s card(s) left." % (ctx.author.name, i, len(deck)))
+	deck = deck[i+1:]
+	await ctx.send("**%s** drew **%s** card(s). The deck now has %s card(s) left." % (ctx.author.name, i+1, len(deck)))
 
 
-@bot.command()
+@bot.command(brief="Reset the game")
+async def reset(ctx):
+	global deck, data
+	suits = ["diamonds", "clubs", "hearts", "spades"]
+	types = "ace two three four five six seven eight nine ten jack queen king".split(" ")
+	deck = []
+	data = {
+		"inplay": [],
+		"players": [],
+		"hands": {}
+	}
+	for suit in suits:
+		for type in types:
+			deck.append("%s of %s" % (type, suit))
+	await ctx.send("Deck reset!")
+
+
+@bot.command(brief="Play some card in your hand", usage="[card]")
 async def play(ctx, *, arg=""):
 	global deck, data
 	if arg == "":
+		try:
+			data["inplay"].insert(0, data["hands"][ctx.author.id][0])
+			await ctx.send("**%s** played a **%s**!" % (ctx.author.name, data["hands"][ctx.author.id][0]))
+			data["hands"][ctx.author.id].pop(0)
+			await ctx.message.delete()
+		except:
+			await ctx.send("You have to draw some cards first!")
 		await ctx.send("You must specify what card you want to play!")
 	else:
 		try:
@@ -120,6 +131,44 @@ async def play(ctx, *, arg=""):
 		except:
 			await ctx.send("You have to draw some cards first!")
 
+
+@bot.command(brief="Give a card from your hand to someone else", usage="[card], [person (id)]")
+async def give(ctx, *, args):
+	global deck, data
+	try:
+		args = args.split(", ")
+		card = args[0]
+		person = args[1].replace("<@!", "")
+		person = int(person.replace(">", ""))
+		try:
+			if card in data["hands"][ctx.author.id]:
+				data["hands"][person].insert(0, card)
+				data["hands"][ctx.author.id].remove(card)
+				await ctx.send("**%s** gave **%s** a **%s**!" % (ctx.author.name, ctx.guild.get_member(person).name, card))
+				await ctx.message.delete()
+			else:
+				await ctx.send("You dont have that card!")
+		except:
+			await ctx.send("You have to draw some cards first!")
+	except:
+		await ctx.send("You have to use both arguments, seperated by a comma! Make sure you used the persons id, not their name.")
+
+
+@bot.command(brief="Move some cards from the draw pile to the play pile", usage="<amount>")
+async def show(ctx, arg="1"):
+	global deck, data
+	arg = int(arg)
+	outputarray = []
+	i = 0
+	for num in range(arg):
+		i = num
+		try:
+			data["inplay"].append(deck[num])
+			outputarray.append(deck[num])
+		except:
+			break
+	deck = deck[i+1:]
+	await ctx.send("**%s** card(s) have been shown. They were:\n%s\n\nThe deck now has %s card(s) left." % (i+1, "\n".join(outputarray), len(deck)))
 
 
 with open("T:/all/cardtoken.txt", "r") as token:
