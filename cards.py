@@ -68,6 +68,7 @@ async def shuffle(ctx):
 	global deck, data
 	r.shuffle(deck)
 	await ctx.send("Deck shuffled!")
+	await ctx.message.delete()
 
 
 @bot.command(brief="Draw some amount of cards", usage="<amount>")
@@ -88,6 +89,7 @@ async def draw(ctx, arg="1"):
 			break
 	deck = deck[i+1:]
 	await ctx.send("**%s** drew **%s** card(s). The deck now has %s card(s) left." % (ctx.author.name, i+1, len(deck)))
+	await ctx.message.delete()
 
 
 @bot.command(brief="Reset the game")
@@ -105,6 +107,7 @@ async def reset(ctx):
 		for type in types:
 			deck.append("%s of %s" % (type, suit))
 	await ctx.send("Deck reset!")
+	await ctx.message.delete()
 
 
 @bot.command(brief="Play some card in your hand", usage="[card]")
@@ -118,13 +121,125 @@ async def play(ctx, *, arg=""):
 			await ctx.message.delete()
 		except:
 			await ctx.send("You have to draw some cards first!")
-		await ctx.send("You must specify what card you want to play!")
+	else:
+		if len(arg.split(", ")) == 1:
+			try:
+				if arg in data["hands"][ctx.author.id]:
+					data["inplay"].insert(0, arg)
+					data["hands"][ctx.author.id].remove(arg)
+					await ctx.send("**%s** played a **%s**!" % (ctx.author.name, arg))
+					await ctx.message.delete()
+				else:
+					await ctx.send("You dont have that card!")
+			except:
+				await ctx.send("You have to draw some cards first!")
+		else:
+			args = arg.split(", ")
+			cardsplayed = []
+			await ctx.send("Playing multiple cards at a time is WIP!")
+
+
+@bot.command(brief="Take the play pile")
+async def take(ctx):
+	global deck, data
+	try:
+		for card in data["inplay"]:
+			data["hands"][ctx.author.id].append(card)
+		data["inplay"] = []
+		await ctx.send("**%s** took the entire in play pile!" % ctx.author.name)
+		await ctx.message.delete()
+	except:
+		await ctx.send("Something went wrong -- maybe theres nothing in the play pile? Or you havent drawn any cards yet.")
+
+
+@bot.command(brief="Show the amounts of cards left", usage="[all, piles, hands, or hand]")
+async def count(ctx, type="all"):
+	global deck, data
+	if type == "all":
+		deckcount = 0
+		inplaycount = 0
+		hands = ""
+		for card in deck:
+			deckcount += 1
+		for card in data["inplay"]:
+			inplaycount += 1
+		for key in data["hands"]:
+			handcount = 0
+			for card in data["hands"][key]:
+				handcount += 1
+			hands = hands + "\n**%s:** %s cards" % (ctx.guild.get_member(key).name, handcount)
+		await ctx.send("**Deck:** %s cards\n**In Play:** %s cards\n\n__**Hands:**__%s" % (deckcount, inplaycount, hands))
+	elif type == "piles":
+		deckcount = 0
+		inplaycount = 0
+		for card in deck:
+			deckcount += 1
+		for card in data["inplay"]:
+			inplaycount += 1
+		await ctx.send("**Deck:** %s cards\n**In Play:** %s cards" % (deckcount, inplaycount))
+	elif type == "hands":
+		hands = ""
+		for key in data["hands"]:
+			handcount = 0
+			for card in data["hands"][key]:
+				handcount += 1
+			hands = hands + "\n**%s:** %s cards" % (ctx.guild.get_member(key).name, handcount)
+		await ctx.send("__**Hands:**__%s" % (hands))
+	elif type == "hand":
+		handcount = 0
+		for card in data["hands"][ctx.author.id]:
+			handcount += 1
+		await ctx.send("**%s's Hand:** %s cards" % (ctx.author.name, handcount))
+	else:
+		await ctx.send("Please use either all, piles, hands, or hand as an argument.")
+
+
+@bot.command(brief="Find out how poopy jonathan is")
+async def poopmeter(ctx):
+	await ctx.send("Jonathan is %s percent poopy" % r.randint(75, 1200))
+
+
+@bot.command(brief="Move a card from your hand to the bottom of the deck", usage="[card]")
+async def discard(ctx, *, arg=""):
+	global deck, data
+	if arg == "":
+		try:
+			deck.insert(len(deck), data["hands"][ctx.author.id][0])
+			await ctx.send("**%s** discarded a **%s**!" % (ctx.author.name, data["hands"][ctx.author.id][0]))
+			data["hands"][ctx.author.id].pop(0)
+			await ctx.message.delete()
+		except:
+			await ctx.send("You have to draw some cards first!")
 	else:
 		try:
 			if arg in data["hands"][ctx.author.id]:
-				data["inplay"].insert(0, arg)
+				deck.insert(len(deck), arg)
 				data["hands"][ctx.author.id].remove(arg)
-				await ctx.send("**%s** played a **%s**!" % (ctx.author.name, arg))
+				await ctx.send("**%s** discarded a **%s**!" % (ctx.author.name, arg))
+				await ctx.message.delete()
+			else:
+				await ctx.send("You dont have that card!")
+		except:
+			await ctx.send("You have to draw some cards first!")
+
+
+@bot.command(brief="Move a card from your hand to the bottom of the in play pile", usage="[card]")
+async def burn(ctx, *, arg=""):
+	global deck, data
+	if arg == "":
+		try:
+			data["inplay"].insert(len(data["inplay"]), data["hands"][ctx.author.id][0])
+			await ctx.send("**%s** burned a **%s**!" % (ctx.author.name, data["hands"][ctx.author.id][0]))
+			data["hands"][ctx.author.id].pop(0)
+			await ctx.message.delete()
+		except:
+			await ctx.send("You have to draw some cards first!")
+	else:
+		try:
+			if arg in data["hands"][ctx.author.id]:
+				data["inplay"].insert(len(data["inplay"]), arg)
+				data["hands"][ctx.author.id].remove(arg)
+				await ctx.send("**%s** burned a **%s**!" % (ctx.author.name, arg))
 				await ctx.message.delete()
 			else:
 				await ctx.send("You dont have that card!")
